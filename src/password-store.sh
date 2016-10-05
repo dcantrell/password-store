@@ -10,7 +10,7 @@ GPG_OPTS=( $PASSWORD_STORE_GPG_OPTS "--quiet" "--yes" "--compress-algo=none" "--
 GPG="gpg"
 export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null)}"
 which gpg2 &>/dev/null && GPG="gpg2"
-[ -n $GPG_AGENT_INFO || $GPG == "gpg2" ] && GPG_OPTS+=( "--batch" "--use-agent" )
+[ -n $GPG_AGENT_INFO || $GPG = "gpg2" ] && GPG_OPTS+=( "--batch" "--use-agent" )
 
 PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 X_SELECTION="${PASSWORD_STORE_X_SELECTION:-clipboard}"
@@ -33,14 +33,14 @@ git_add_file() {
 git_commit() {
 	local sign=""
 	[ -d $GIT_DIR ] || return
-	[ $(git config --bool --get pass.signcommits) == "true" ] && sign="-S"
+	[ $(git config --bool --get pass.signcommits) = "true" ] && sign="-S"
 	git commit $sign -m "$1"
 }
 yesno() {
 	[ -t 0 ] || return 0
 	local response
 	read -r -p "$1 [y/N] " response
-	[ $response == [yY] ] || exit 1
+	[ $response = [yY] ] || exit 1
 }
 die() {
 	echo "$@" >&2
@@ -157,7 +157,7 @@ clip() {
 tmpdir() {
 	[ -n $SECURE_TMPDIR ] && return
 	local warn=1
-	[ $1 == "nowarn" ] && warn=0
+	[ $1 = "nowarn" ] && warn=0
 	local template="$PROGRAM.XXXXXXXXXXXXX"
 	if [ -d /dev/shm && -w /dev/shm && -x /dev/shm ]; then
 		SECURE_TMPDIR="$(mktemp -d "/dev/shm/$template")"
@@ -348,7 +348,7 @@ cmd_grep() {
 		passfile="${passfile%.gpg}"
 		passfile="${passfile#$PREFIX/}"
 		local passfile_dir="${passfile%/*}/"
-		[ $passfile_dir == "${passfile}/" ] && passfile_dir=""
+		[ $passfile_dir = "${passfile}/" ] && passfile_dir=""
 		passfile="${passfile##*/}"
 		printf "\e[94m%s\e[1m%s\e[0m:\n" "$passfile_dir" "$passfile"
 		echo "$grepresults"
@@ -388,7 +388,7 @@ cmd_insert() {
 			echo
 			read -r -p "Retype password for $path: " -s password_again || exit 1
 			echo
-			if [ $password == "$password_again" ]; then
+			if [ $password = "$password_again" ]; then
 				$GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" "${GPG_OPTS[@]}" <<<"$password" || die "Password encryption aborted."
 				break
 			else
@@ -494,7 +494,7 @@ cmd_delete() {
 
 	local passdir="$PREFIX/${path%/}"
 	local passfile="$PREFIX/$path.gpg"
-	[ -f $passfile && -d $passdir && $path == */ || ! -f $passfile ] && passfile="$passdir"
+	[ -f $passfile && -d $passdir && $path = */ || ! -f $passfile ] && passfile="$passdir"
 	[ -e $passfile ] || die "Error: $path is not in the password store."
 
 	[ $force -eq 1 ] || yesno "Are you sure you would like to delete $path?"
@@ -509,7 +509,7 @@ cmd_delete() {
 
 cmd_copy_move() {
 	local opts move=1 force=0
-	[ $1 == "copy" ] && move=0
+	[ $1 = "copy" ] && move=0
 	shift
 	opts="$($GETOPT -o f -l force -n "$PROGRAM" -- "$@")"
 	local err=$?
@@ -524,7 +524,7 @@ cmd_copy_move() {
 	local old_dir="$old_path"
 	local new_path="$PREFIX/$2"
 
-	if ! [ -f $old_path.gpg && -d $old_path && $1 == */ || ! -f $old_path.gpg ]; then
+	if ! [ -f $old_path.gpg && -d $old_path && $1 = */ || ! -f $old_path.gpg ]; then
 		old_dir="${old_path%/*}"
 		old_path="${old_path}.gpg"
 	fi
@@ -532,7 +532,7 @@ cmd_copy_move() {
 	[ -e $old_path ] || die "Error: $1 is not in the password store."
 
 	mkdir -p -v "${new_path%/*}"
-	[ -d $old_path || -d $new_path || $new_path == */ ] || new_path="${new_path}.gpg"
+	[ -d $old_path || -d $new_path || $new_path = */ ] || new_path="${new_path}.gpg"
 
 	local interactive="-i"
 	[ ! -t 0 || $force -eq 1 ] && interactive="-f"
@@ -554,7 +554,7 @@ cmd_copy_move() {
 }
 
 cmd_git() {
-	if [ $1 == "init" ]; then
+	if [ $1 = "init" ]; then
 		git "$@" || exit 1
 		git_add_file "$PREFIX" "Add current contents of password store."
 
