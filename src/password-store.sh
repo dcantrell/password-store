@@ -10,7 +10,7 @@ GPG_OPTS=( $PASSWORD_STORE_GPG_OPTS "--quiet" "--yes" "--compress-algo=none" "--
 GPG="gpg"
 export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null)}"
 which gpg2 &>/dev/null && GPG="gpg2"
-[ -n $GPG_AGENT_INFO || $GPG = "gpg2" ] && GPG_OPTS+=( "--batch" "--use-agent" )
+[ -n $GPG_AGENT_INFO ] || [ $GPG = "gpg2" ] && GPG_OPTS+=( "--batch" "--use-agent" )
 
 PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 X_SELECTION="${PASSWORD_STORE_X_SELECTION:-clipboard}"
@@ -59,7 +59,7 @@ set_gpg_recipients() {
 	fi
 
 	local current="$PREFIX/$1"
-	while [ $current != "$PREFIX" && ! -f $current/.gpg-id ]; do
+	while [ ! $current = "$PREFIX" ] && [ ! -f $current/.gpg-id ]; do
 		current="${current%/*}"
 	done
 	current="$current/.gpg-id"
@@ -94,7 +94,7 @@ reencrypt_path() {
 		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
 
 		set_gpg_recipients "$passfile_dir"
-		if [ $prev_gpg_recipients != "${GPG_RECIPIENTS[*]}" ]; then
+		if [ ! $prev_gpg_recipients = "${GPG_RECIPIENTS[*]}" ]; then
 			for index in "${!GPG_RECIPIENTS[@]}"; do
 				local group="$(sed -n "s/^cfg:group:$(sed 's/[\/&]/\\&/g' <<<"${GPG_RECIPIENTS[$index]}"):\\(.*\\)\$/\\1/p" <<<"$groups" | head -n 1)"
 				[ -z $group ] && continue
@@ -105,7 +105,7 @@ reencrypt_path() {
 		fi
 		current_keys="$($GPG $PASSWORD_STORE_GPG_OPTS -v --no-secmem-warning --no-permission-warning --list-only --keyid-format long "$passfile" 2>&1 | cut -d ' ' -f 5 | LC_ALL=C sort -u)"
 
-		if [ $gpg_keys != "$current_keys" ]; then
+		if [ ! $gpg_keys = "$current_keys" ]; then
 			echo "$passfile_display: reencrypting to ${gpg_keys//$'\n'/ }"
 			$GPG -d "${GPG_OPTS[@]}" "$passfile" | $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile_temp" "${GPG_OPTS[@]}" &&
 			mv "$passfile_temp" "$passfile" || rm -f "$passfile_temp"
@@ -116,7 +116,7 @@ reencrypt_path() {
 check_sneaky_paths() {
 	local path
 	for path in "$@"; do
-		[ $path =~ /\.\.$ || $path =~ ^\.\./ || $path =~ /\.\./ || $path =~ ^\.\.$ ] && die "Error: You've attempted to pass a sneaky path to pass. Go home."
+		[ $path =~ /\.\.$ ] || [ $path =~ ^\.\./ ] || [ $path =~ /\.\./ ] || [ $path =~ ^\.\.$ ] && die "Error: You've attempted to pass a sneaky path to pass. Go home."
 	done
 }
 
@@ -139,7 +139,7 @@ clip() {
 	(
 		( exec -a "$sleep_argv0" sleep "$CLIP_TIME" )
 		local now="$(xclip -o -selection "$X_SELECTION" | base64)"
-		[ $now != $(echo -n "$1" | base64) ] && before="$now"
+		[ ! $now = $(echo -n "$1" | base64) ] && before="$now"
 
 		# It might be nice to programatically check to see if klipper exists,
 		# as well as checking for other common clipboard managers. But for now,
@@ -159,7 +159,7 @@ tmpdir() {
 	local warn=1
 	[ $1 = "nowarn" ] && warn=0
 	local template="$PROGRAM.XXXXXXXXXXXXX"
-	if [ -d /dev/shm && -w /dev/shm && -x /dev/shm ]; then
+	if [ -d /dev/shm ] && [ -w /dev/shm ] && [ -x /dev/shm ]; then
 		SECURE_TMPDIR="$(mktemp -d "/dev/shm/$template")"
 		remove_tmpfile() {
 			rm -rf "$SECURE_TMPDIR"
@@ -268,13 +268,13 @@ cmd_init() {
 		--) shift; break ;;
 	esac done
 
-	[ $err -ne 0 || $# -lt 1 ] && die "Usage: $PROGRAM $COMMAND [--path=subfolder,-p subfolder] gpg-id..."
+	[ $err -ne 0 ] || [ $# -lt 1 ] && die "Usage: $PROGRAM $COMMAND [--path=subfolder,-p subfolder] gpg-id..."
 	[ -n $id_path ] && check_sneaky_paths "$id_path"
-	[ -n $id_path && ! -d $PREFIX/$id_path && -e $PREFIX/$id_path ] && die "Error: $PREFIX/$id_path exists but is not a directory."
+	[ -n $id_path ] && [ ! -d $PREFIX/$id_path ] && [ -e $PREFIX/$id_path ] && die "Error: $PREFIX/$id_path exists but is not a directory."
 
 	local gpg_id="$PREFIX/$id_path/.gpg-id"
 
-	if [ $# -eq 1 && -z $1 ]; then
+	if [ $# -eq 1 ] && [ -z $1 ]; then
 		[ ! -f "$gpg_id" ] && die "Error: $gpg_id does not exist and so cannot be removed."
 		rm -v -f "$gpg_id" || exit 1
 		if [ -d $GIT_DIR ]; then
@@ -367,12 +367,12 @@ cmd_insert() {
 		--) shift; break ;;
 	esac done
 
-	[ $err -ne 0 || ( $multiline -eq 1 && $noecho -eq 0 ) || $# -ne 1 ] && die "Usage: $PROGRAM $COMMAND [--echo,-e | --multiline,-m] [--force,-f] pass-name"
+	[ $err -ne 0 ] || [ ( $multiline -eq 1 && $noecho -eq 0 ) || $# -ne 1 ] && die "Usage: $PROGRAM $COMMAND [--echo,-e | --multiline,-m] [--force,-f] pass-name"
 	local path="${1%/}"
 	local passfile="$PREFIX/$path.gpg"
 	check_sneaky_paths "$path"
 
-	[ $force -eq 0 && -e $passfile ] && yesno "An entry already exists for $path. Overwrite it?"
+	[ $force -eq 0 ] && [ -e $passfile ] && yesno "An entry already exists for $path. Overwrite it?"
 
 	mkdir -p -v "$PREFIX/$(dirname "$path")"
 	set_gpg_recipients "$(dirname "$path")"
@@ -443,7 +443,7 @@ cmd_generate() {
 		--) shift; break ;;
 	esac done
 
-	[ $err -ne 0 || ( $# -ne 2 && $# -ne 1 ) || ( $force -eq 1 && $inplace -eq 1 ) ] && die "Usage: $PROGRAM $COMMAND [--no-symbols,-n] [--clip,-c] [--in-place,-i | --force,-f] pass-name [pass-length]"
+	[ $err -ne 0 ] || [ ( $# -ne 2 && $# -ne 1 ) ] || [ ( $force -eq 1 && $inplace -eq 1 ) ] && die "Usage: $PROGRAM $COMMAND [--no-symbols,-n] [--clip,-c] [--in-place,-i | --force,-f] pass-name [pass-length]"
 	local path="$1"
 	local length="${2:-$GENERATED_LENGTH}"
 	check_sneaky_paths "$path"
@@ -452,7 +452,7 @@ cmd_generate() {
 	set_gpg_recipients "$(dirname "$path")"
 	local passfile="$PREFIX/$path.gpg"
 
-	[ $inplace -eq 0 && $force -eq 0 && -e $passfile ] && yesno "An entry already exists for $path. Overwrite it?"
+	[ $inplace -eq 0 ] && [ $force -eq 0 ] && [ -e $passfile ] && yesno "An entry already exists for $path. Overwrite it?"
 
 	local pass="$(pwgen -s $symbols $length 1)"
 	[ -n $pass ] || exit 1
@@ -494,13 +494,13 @@ cmd_delete() {
 
 	local passdir="$PREFIX/${path%/}"
 	local passfile="$PREFIX/$path.gpg"
-	[ -f $passfile && -d $passdir && $path = */ || ! -f $passfile ] && passfile="$passdir"
+	[ -f $passfile ] && [ -d $passdir ] && [ $path = */ ] || [ ! -f $passfile ] && passfile="$passdir"
 	[ -e $passfile ] || die "Error: $path is not in the password store."
 
 	[ $force -eq 1 ] || yesno "Are you sure you would like to delete $path?"
 
 	rm $recursive -f -v "$passfile"
-	if [ -d $GIT_DIR && ! -e $passfile ]; then
+	if [ -d $GIT_DIR ] && [ ! -e $passfile ]; then
 		git rm -qr "$passfile"
 		git_commit "Remove $path from store."
 	fi
@@ -524,7 +524,7 @@ cmd_copy_move() {
 	local old_dir="$old_path"
 	local new_path="$PREFIX/$2"
 
-	if ! [ -f $old_path.gpg && -d $old_path && $1 = */ || ! -f $old_path.gpg ]; then
+	if ! [ -f $old_path.gpg ] && [ -d $old_path ] && [ $1 = */ ] || [ ! -f $old_path.gpg ]; then
 		old_dir="${old_path%/*}"
 		old_path="${old_path}.gpg"
 	fi
@@ -532,16 +532,16 @@ cmd_copy_move() {
 	[ -e $old_path ] || die "Error: $1 is not in the password store."
 
 	mkdir -p -v "${new_path%/*}"
-	[ -d $old_path || -d $new_path || $new_path = */ ] || new_path="${new_path}.gpg"
+	[ -d $old_path ] || [ -d $new_path ] || [ $new_path = */ ] || new_path="${new_path}.gpg"
 
 	local interactive="-i"
-	[ ! -t 0 || $force -eq 1 ] && interactive="-f"
+	[ ! -t 0 ] || [ $force -eq 1 ] && interactive="-f"
 
 	if [ $move -eq 1 ]; then
 		mv $interactive -v "$old_path" "$new_path" || exit 1
 		[ -e "$new_path" ] && reencrypt_path "$new_path"
 
-		if [ -d $GIT_DIR && ! -e $old_path ]; then
+		if [ -d $GIT_DIR ] && [ ! -e $old_path ]; then
 			git rm -qr "$old_path"
 			git_add_file "$new_path" "Rename ${1} to ${2}."
 		fi
