@@ -48,12 +48,12 @@ die() {
 }
 set_gpg_recipients() {
 	GPG_RECIPIENT_ARGS=( )
-	GPG_RECIPIENTS=( )
+	GPG_RECIPIENTS=
 
 	if [ -n $PASSWORD_STORE_KEY ]; then
 		for gpg_id in $PASSWORD_STORE_KEY; do
 			GPG_RECIPIENT_ARGS+=( "-r" "$gpg_id" )
-			GPG_RECIPIENTS+=( "$gpg_id" )
+			GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 		done
 		return
 	fi
@@ -78,7 +78,7 @@ set_gpg_recipients() {
 	local gpg_id
 	while read -r gpg_id; do
 		GPG_RECIPIENT_ARGS+=( "-r" "$gpg_id" )
-		GPG_RECIPIENTS+=( "$gpg_id" )
+		GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 	done < "$current"
 }
 
@@ -94,14 +94,17 @@ reencrypt_path() {
 		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
 
 		set_gpg_recipients "$passfile_dir"
-		if [ ! $prev_gpg_recipients = "${GPG_RECIPIENTS[*]}" ]; then
-			for index in "${!GPG_RECIPIENTS[@]}"; do
-				local group="$(sed -n "s/^cfg:group:$(sed 's/[\/&]/\\&/g' <<<"${GPG_RECIPIENTS[$index]}"):\\(.*\\)\$/\\1/p" <<<"$groups" | head -n 1)"
-				[ -z $group ] && continue
-				IFS=";" eval 'GPG_RECIPIENTS+=( $group )' # http://unix.stackexchange.com/a/92190
-				unset GPG_RECIPIENTS[$index]
+		if [ ! $prev_gpg_recipients = "$GPG_RECIPIENTS" ]; then
+			new_gpg_recipients=
+			for index in $GPG_RECIPIENTS; do
+				local group="$(sed -n "s/^cfg:group:$(sed 's/[\/&]/\\&/g' <<<"$index"):\\(.*\\)\$/\\1/p" <<<"$groups" | head -n 1)"
+				if [ -z $group ]; then
+					new_gpg_recipients="$new_gpg_recipients $index"
+				else
+					new_gpg_recipients="$new_gpg_recipients $(echo "$group" | sed -e 's|;||g')"
+				fi
 			done
-			gpg_keys="$($GPG $PASSWORD_STORE_GPG_OPTS --list-keys --with-colons "${GPG_RECIPIENTS[@]}" | sed -n 's/sub:[^:]*:[^:]*:[^:]*:\([^:]*\):[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[a-zA-Z]*e[a-zA-Z]*:.*/\1/p' | LC_ALL=C sort -u)"
+			gpg_keys="$($GPG $PASSWORD_STORE_GPG_OPTS --list-keys --with-colons "$GPG_RECIPIENTS" | sed -n 's/sub:[^:]*:[^:]*:[^:]*:\([^:]*\):[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[a-zA-Z]*e[a-zA-Z]*:.*/\1/p' | LC_ALL=C sort -u)"
 		fi
 		current_keys="$($GPG $PASSWORD_STORE_GPG_OPTS -v --no-secmem-warning --no-permission-warning --list-only --keyid-format long "$passfile" 2>&1 | cut -d ' ' -f 5 | LC_ALL=C sort -u)"
 
@@ -110,7 +113,7 @@ reencrypt_path() {
 			$GPG -d $GPG_OPTS "$passfile" | $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile_temp" $GPG_OPTS &&
 			mv "$passfile_temp" "$passfile" || rm -f "$passfile_temp"
 		fi
-		prev_gpg_recipients="${GPG_RECIPIENTS[*]}"
+		prev_gpg_recipients="$GPG_RECIPIENTS"
 	done < <(find "$1" -iname '*.gpg' -print0)
 }
 check_sneaky_paths() {
