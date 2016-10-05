@@ -97,7 +97,7 @@ reencrypt_path() {
 		if [ ! $prev_gpg_recipients = "$GPG_RECIPIENTS" ]; then
 			new_gpg_recipients=
 			for index in $GPG_RECIPIENTS; do
-				local group="$(sed -n "s/^cfg:group:$(sed 's/[\/&]/\\&/g' <<<"$index"):\\(.*\\)\$/\\1/p" <<<"$groups" | head -n 1)"
+				local group="$(echo "$groups" | sed -n "s/^cfg:group:$(echo "$index" | sed 's/[\/&]/\\&/g'):\\(.*\\)\$/\\1/p" | head -n 1)"
 				if [ -z $group ]; then
 					new_gpg_recipients="$new_gpg_recipients $index"
 				else
@@ -392,7 +392,7 @@ cmd_insert() {
 			read -r -p "Retype password for $path: " -s password_again || exit 1
 			echo
 			if [ $password = "$password_again" ]; then
-				$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
+				echo "$password" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
 				break
 			else
 				die "Error: the entered passwords do not match."
@@ -401,7 +401,7 @@ cmd_insert() {
 	else
 		local password
 		read -r -p "Enter password for $path: " -e password
-		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
+		echo "$password" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
 	fi
 	git_add_file "$passfile" "Add given password for $path to store."
 }
@@ -460,10 +460,10 @@ cmd_generate() {
 	local pass="$(pwgen -s $symbols $length 1)"
 	[ -n $pass ] || exit 1
 	if [ $inplace -eq 0 ]; then
-		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$pass" || die "Password encryption aborted."
+		echo "$pass" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
 	else
 		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
-		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(sed 's/[\/&]/\\&/g' <<<"$pass")"$'\n' | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS; then
+		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(echo "$pass" | sed 's/[\/&]/\\&/g')"$'\n' | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS; then
 			mv "$passfile_temp" "$passfile"
 		else
 			rm -f "$passfile_temp"
