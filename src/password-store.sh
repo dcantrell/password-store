@@ -9,7 +9,7 @@ set -o pipefail
 GPG_OPTS="$PASSWORD_STORE_GPG_OPTS --quiet --yes --compress-algo=none --no-encrypt-to"
 GPG="gpg"
 export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null)}"
-which gpg2 &>/dev/null && GPG="gpg2"
+which gpg2 >/dev/null 2>&1 && GPG="gpg2"
 [ -n $GPG_AGENT_INFO ] || [ $GPG = "gpg2" ] && GPG_OPTS="$GPG_OPTS --batch --use-agent"
 
 PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
@@ -148,7 +148,7 @@ clip() {
 		#
 		# Clipboard managers frequently write their history out in plaintext,
 		# so we axe it here:
-		qdbus org.kde.klipper /klipper org.kde.klipper.klipper.clearClipboardHistory &>/dev/null
+		qdbus org.kde.klipper /klipper org.kde.klipper.klipper.clearClipboardHistory >/dev/null 2>&1
 
 		echo "$before" | base64 -d | xclip -selection "$X_SELECTION"
 	) 2>/dev/null & disown
@@ -423,7 +423,7 @@ cmd_edit() {
 	fi
 	${EDITOR:-vi} "$tmp_file"
 	[ -f $tmp_file ] || die "New password not saved."
-	$GPG -d -o - $GPG_OPTS "$passfile" 2>/dev/null | diff - "$tmp_file" &>/dev/null && die "Password unchanged."
+	$GPG -d -o - $GPG_OPTS "$passfile" 2>/dev/null | diff - "$tmp_file" >/dev/null 2>&1 && die "Password unchanged."
 	while ! $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS "$tmp_file"; do
 		yesno "GPG encryption failed. Would you like to try again?"
 	done
