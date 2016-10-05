@@ -47,12 +47,12 @@ die() {
 	exit 1
 }
 set_gpg_recipients() {
-	GPG_RECIPIENT_ARGS=( )
+	GPG_RECIPIENT_ARGS=
 	GPG_RECIPIENTS=
 
 	if [ -n $PASSWORD_STORE_KEY ]; then
 		for gpg_id in $PASSWORD_STORE_KEY; do
-			GPG_RECIPIENT_ARGS+=( "-r" "$gpg_id" )
+			GPG_RECIPIENT_ARGS="$GPG_RECIPIENT_ARGS -r $gpg_id"
 			GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 		done
 		return
@@ -77,7 +77,7 @@ set_gpg_recipients() {
 
 	local gpg_id
 	while read -r gpg_id; do
-		GPG_RECIPIENT_ARGS+=( "-r" "$gpg_id" )
+		GPG_RECIPIENT_ARGS="$GPG_RECIPIENT_ARGS -r $gpg_id"
 		GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 	done < "$current"
 }
@@ -110,7 +110,7 @@ reencrypt_path() {
 
 		if [ ! $gpg_keys = "$current_keys" ]; then
 			echo "$passfile_display: reencrypting to ${gpg_keys//$'\n'/ }"
-			$GPG -d $GPG_OPTS "$passfile" | $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile_temp" $GPG_OPTS &&
+			$GPG -d $GPG_OPTS "$passfile" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS &&
 			mv "$passfile_temp" "$passfile" || rm -f "$passfile_temp"
 		fi
 		prev_gpg_recipients="$GPG_RECIPIENTS"
@@ -383,7 +383,7 @@ cmd_insert() {
 	if [ $multiline -eq 1 ]; then
 		echo "Enter contents of $path and press Ctrl+D when finished:"
 		echo
-		$GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS || die "Password encryption aborted."
+		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS || die "Password encryption aborted."
 	elif [ $noecho -eq 1 ]; then
 		local password password_again
 		while true; do
@@ -392,7 +392,7 @@ cmd_insert() {
 			read -r -p "Retype password for $path: " -s password_again || exit 1
 			echo
 			if [ $password = "$password_again" ]; then
-				$GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
+				$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
 				break
 			else
 				die "Error: the entered passwords do not match."
@@ -401,7 +401,7 @@ cmd_insert() {
 	else
 		local password
 		read -r -p "Enter password for $path: " -e password
-		$GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
+		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$password" || die "Password encryption aborted."
 	fi
 	git_add_file "$passfile" "Add given password for $path to store."
 }
@@ -427,7 +427,7 @@ cmd_edit() {
 	${EDITOR:-vi} "$tmp_file"
 	[ -f $tmp_file ] || die "New password not saved."
 	$GPG -d -o - $GPG_OPTS "$passfile" 2>/dev/null | diff - "$tmp_file" >/dev/null 2>&1 && die "Password unchanged."
-	while ! $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS "$tmp_file"; do
+	while ! $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS "$tmp_file"; do
 		yesno "GPG encryption failed. Would you like to try again?"
 	done
 	git_add_file "$passfile" "$action password for $path using ${EDITOR:-vi}."
@@ -460,10 +460,10 @@ cmd_generate() {
 	local pass="$(pwgen -s $symbols $length 1)"
 	[ -n $pass ] || exit 1
 	if [ $inplace -eq 0 ]; then
-		$GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile" $GPG_OPTS <<<"$pass" || die "Password encryption aborted."
+		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS <<<"$pass" || die "Password encryption aborted."
 	else
 		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
-		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(sed 's/[\/&]/\\&/g' <<<"$pass")"$'\n' | $GPG -e "${GPG_RECIPIENT_ARGS[@]}" -o "$passfile_temp" $GPG_OPTS; then
+		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(sed 's/[\/&]/\\&/g' <<<"$pass")"$'\n' | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS; then
 			mv "$passfile_temp" "$passfile"
 		else
 			rm -f "$passfile_temp"
