@@ -16,6 +16,7 @@ PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 X_SELECTION="${PASSWORD_STORE_X_SELECTION:-clipboard}"
 CLIP_TIME="${PASSWORD_STORE_CLIP_TIME:-45}"
 GENERATED_LENGTH="${PASSWORD_STORE_GENERATED_LENGTH:-25}"
+TMPDIR=
 
 export GIT_DIR="${PASSWORD_STORE_GIT:-$PREFIX}/.git"
 export GIT_WORK_TREE="${PASSWORD_STORE_GIT:-$PREFIX}"
@@ -91,7 +92,8 @@ reencrypt_path() {
 		passfile_dir="${passfile_dir#/}"
 		local passfile_display="${passfile#$PREFIX/}"
 		passfile_display="${passfile_display%.gpg}"
-		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
+		tmpdir
+		local passfile_temp="$(mkfifo -m 0600 "$SECURE_TMPDIR/pipe")"
 
 		set_gpg_recipients "$passfile_dir"
 		if [ ! $prev_gpg_recipients = "$GPG_RECIPIENTS" ]; then
@@ -462,7 +464,8 @@ cmd_generate() {
 	if [ $inplace -eq 0 ]; then
 		echo "$pass" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
 	else
-		local passfile_temp="${passfile}.tmp.${RANDOM}.${RANDOM}.${RANDOM}.${RANDOM}.--"
+		tmpdir
+		local passfile_temp="$(mkfifo -m 0600 "$SECURE_TMPDIR/pipe")"
 		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(echo "$pass" | sed 's/[\/&]/\\&/g')"$'\n' | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS; then
 			mv "$passfile_temp" "$passfile"
 		else
