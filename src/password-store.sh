@@ -85,7 +85,7 @@ set_gpg_recipients() {
 reencrypt_path() {
 	local prev_gpg_recipients="" gpg_keys="" current_keys="" index passfile
 	local groups="$($GPG $PASSWORD_STORE_GPG_OPTS --list-config --with-colons | grep "^cfg:group:.*")"
-	while read -r -d "" passfile; do
+	find "$1" -iname '*.gpg' -print0 | while read -r -d "" passfile; do
 		local passfile_dir="${passfile%/*}"
 		passfile_dir="${passfile_dir#$PREFIX}"
 		passfile_dir="${passfile_dir#/}"
@@ -114,7 +114,7 @@ reencrypt_path() {
 			mv "$passfile_temp" "$passfile" || rm -f "$passfile_temp"
 		fi
 		prev_gpg_recipients="$GPG_RECIPIENTS"
-	done < <(find "$1" -iname '*.gpg' -print0)
+	done
 }
 check_sneaky_paths() {
 	local path
@@ -345,7 +345,7 @@ cmd_find() {
 cmd_grep() {
 	[ $# -ne 1 ] && die "Usage: $PROGRAM $COMMAND search-string"
 	local search="$1" passfile grepresults
-	while read -r -d "" passfile; do
+	find -L "$PREFIX" -iname '*.gpg' -print0 | while read -r -d "" passfile; do
 		grepresults="$($GPG -d $GPG_OPTS "$passfile" | grep --color=always "$search")"
 		[ $? -ne 0 ] && continue
 		passfile="${passfile%.gpg}"
@@ -355,7 +355,7 @@ cmd_grep() {
 		passfile="${passfile##*/}"
 		printf "\e[94m%s\e[1m%s\e[0m:\n" "$passfile_dir" "$passfile"
 		echo "$grepresults"
-	done < <(find -L "$PREFIX" -iname '*.gpg' -print0)
+	done
 }
 
 cmd_insert() {
