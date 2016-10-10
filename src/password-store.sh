@@ -136,7 +136,7 @@ clip() {
 	# variable. Specifically, it cannot store nulls nor (non-trivally) store
 	# trailing new lines.
 	local sleep_argv0="password store sleep on display $DISPLAY"
-	pkill -f "^$sleep_argv0" 2>/dev/null && sleep 0.5
+	pkill -f "^$sleep_argv0" 2>/dev/null && sleep 1
 	local before="$(xclip -o -selection "$X_SELECTION" 2>/dev/null | base64)"
 	echo -n "$1" | xclip -selection "$X_SELECTION" || die "Error: Could not copy data to the clipboard"
 	(
