@@ -121,7 +121,17 @@ reencrypt_path() {
 check_sneaky_paths() {
 	local path
 	for path in "$@"; do
-		[ $path =~ /\.\.$ ] || [ $path =~ ^\.\./ ] || [ $path =~ /\.\./ ] || [ $path =~ ^\.\.$ ] && die "Error: You've attempted to pass a sneaky path to pass. Go home."
+		echo "$path" | grep -qE "/\.\.$" >/dev/null 2>&1
+		a=$?
+		echo "$path" | grep -qE "^\.\./" >/dev/null 2>&1
+		b=$?
+		echo "$path" | grep -qE "/\.\./" >/dev/null 2>&1
+		c=$?
+		echo "$path" | grep -qE "^\.\.$" >/dev/null 2>&1
+		d=$?
+		if [ $a -eq 0 ] || [ $b -eq 0 ] || [ $c -eq 0 ] || [ $d -eq 0 ]; then
+			die "Error: You've attempted to pass a sneaky path to pass. Go home."
+		fi
 	done
 }
 
