@@ -373,7 +373,9 @@ cmd_insert() {
 		--) shift; break ;;
 	esac done
 
-	[ $err -ne 0 ] || [ ( $multiline -eq 1 && $noecho -eq 0 ) || $# -ne 1 ] && die "Usage: $PROGRAM $COMMAND [--echo,-e | --multiline,-m] [--force,-f] pass-name"
+	if [ $err -ne 0 ] || ( [ $multiline -eq 1 ] && [ $noecho -eq 0 ] ) || [ $# -ne 1 ]; then
+		die "Usage: $PROGRAM $COMMAND [--echo,-e | --multiline,-m] [--force,-f] pass-name"
+	fi
 	local path="${1%/}"
 	local passfile="$PREFIX/$path.gpg"
 	check_sneaky_paths "$path"
@@ -449,7 +451,9 @@ cmd_generate() {
 		--) shift; break ;;
 	esac done
 
-	[ $err -ne 0 ] || [ ( $# -ne 2 && $# -ne 1 ) ] || [ ( $force -eq 1 && $inplace -eq 1 ) ] && die "Usage: $PROGRAM $COMMAND [--no-symbols,-n] [--clip,-c] [--in-place,-i | --force,-f] pass-name [pass-length]"
+	if [ $err -ne 0 ] || ( [ $# -ne 2 ] && [ $# -ne 1 ] ) || ( [ $force -eq 1 ] && [ $inplace -eq 1 ] ); then
+		die "Usage: $PROGRAM $COMMAND [--no-symbols,-n] [--clip,-c] [--in-place,-i | --force,-f] pass-name [pass-length]"
+	fi
 	local path="$1"
 	local length="${2:-$GENERATED_LENGTH}"
 	check_sneaky_paths "$path"
