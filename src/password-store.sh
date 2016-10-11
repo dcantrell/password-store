@@ -419,7 +419,7 @@ cmd_edit() {
 	local passfile="$PREFIX/$path.gpg"
 
 	tmpdir #Defines $SECURE_TMPDIR
-	local tmp_file="$(mktemp -u "$SECURE_TMPDIR/XXXXXX")-${path//\//-}.txt"
+	local tmp_file="$(mkfifo -m 0600 "$SECURE_TMPDIR/$(echo "$path" | sed -e 's|/|-|g').txt")"
 
 
 	local action="Add"
