@@ -28,20 +28,22 @@ export GIT_WORK_TREE="${PASSWORD_STORE_GIT:-$PREFIX}"
 git_add_file() {
 	[ -d $GIT_DIR ] || return
 	git add "$1" || return
-	[ -n $(git status --porcelain "$1") ] || return
+	[ -n "$(git status --porcelain "$1")" ] || return
 	git_commit "$2"
 }
 git_commit() {
 	local sign=""
 	[ -d $GIT_DIR ] || return
-	[ $(git config --bool --get pass.signcommits) = "true" ] && sign="-S"
+	[ "$(git config --bool --get pass.signcommits)" = "true" ] && sign="-S"
 	git commit $sign -m "$1"
 }
 yesno() {
 	[ -t 0 ] || return 0
 	local response
 	read -r -p "$1 [y/N] " response
-	[ $response = [yY] ] || exit 1
+	if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
+                exit 1
+        fi
 }
 die() {
 	echo "$@" >&2
