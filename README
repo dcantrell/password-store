@@ -1,14 +1,22 @@
-======================
+======================================
 Simple Password Store
 by Jason Donenfeld
    Jason@zx2c4.com
-======================
+
+Modified by David Cantrell
+            david.l.cantrell@gmail.com
+======================================
 
 This is a very simple password store that encrypts passwords using gpg and
 places the encrypted password in a directory. It can generate new passwords
 and keep track of old ones.
 
-Visit the project page for more information: http://www.passwordstore.org/
+This project is based on the work at http://www.passwordstore.org/.  This
+fork is meant to preserve the functionality of the program while adjusting
+the runtime requirements a bit.  The main change was making script not
+depend on GNU bash.  Other changes followed.
+
+Patches are welcome.
 
 Please see the man page for documentation and examples.
 
