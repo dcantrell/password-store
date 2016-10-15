@@ -24,7 +24,7 @@ PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 X_SELECTION="${PASSWORD_STORE_X_SELECTION:-clipboard}"
 CLIP_TIME="${PASSWORD_STORE_CLIP_TIME:-45}"
 GENERATED_LENGTH="${PASSWORD_STORE_GENERATED_LENGTH:-25}"
-TMPDIR=
+SECURE_TMPDIR=
 
 export GIT_DIR="${PASSWORD_STORE_GIT:-$PREFIX}/.git"
 export GIT_WORK_TREE="${PASSWORD_STORE_GIT:-$PREFIX}"
@@ -102,7 +102,7 @@ reencrypt_path() {
 		local passfile_display="${passfile#$PREFIX/}"
 		passfile_display="${passfile_display%.gpg}"
 		tmpdir
-		local passfile_temp="$(mkfifo -m 0600 "$SECURE_TMPDIR/pipe")"
+		local passfile_temp="$SECURE_TMPDIR/passfile_temp"
 
 		set_gpg_recipients "$passfile_dir"
 		if [ ! $prev_gpg_recipients = "$GPG_RECIPIENTS" ]; then
@@ -179,9 +179,9 @@ clip() {
 	echo "Copied $2 to clipboard. Will clear in $CLIP_TIME seconds."
 }
 tmpdir() {
-	[ -n $SECURE_TMPDIR ] && return
+	[ -n "$SECURE_TMPDIR" ] && return
 	local warn=1
-	[ $1 = "nowarn" ] && warn=0
+	[ "$1" = "nowarn" ] && warn=0
 	local template="$PROGRAM.XXXXXXXXXXXXX"
 	if [ -d /dev/shm ] && [ -w /dev/shm ] && [ -x /dev/shm ]; then
 		SECURE_TMPDIR="$(mktemp -d "/dev/shm/$template")"
@@ -450,7 +450,7 @@ cmd_edit() {
 	local passfile="$PREFIX/$path.gpg"
 
 	tmpdir #Defines $SECURE_TMPDIR
-	local tmp_file="$(mkfifo -m 0600 "$SECURE_TMPDIR/$(echo "$path" | sed -e 's|/|-|g').txt")"
+	local tmp_file="$SECURE_TMPDIR/$(echo "$path" | sed -e 's|/|-|g').txt"
 
 
 	local action="Add"
@@ -506,7 +506,7 @@ cmd_generate() {
 		rm -f "$encsrc"
 	else
 		tmpdir
-		local passfile_temp="$(mkfifo -m 0600 "$SECURE_TMPDIR/pipe")"
+		local passfile_temp="$SECURE_TMPDIR/passfile_temp"
 		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(echo "$pass" | sed 's/[\/&]/\\&/g')"$'\n' | $GPG -e $GPG_RECIPIENT_ARGS -o "$passfile_temp" $GPG_OPTS; then
 			mv "$passfile_temp" "$passfile"
 		else
