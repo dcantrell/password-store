@@ -21,18 +21,29 @@ Patches are welcome.
 Please see the man page for documentation and examples.
 
 Depends on:
-- bash
-  http://www.gnu.org/software/bash/
-- GnuPG2
+- More or less POSIX-compatible shell (e.g., dash)
+  http://www.in-ulm.de/~mascheck/various/ash/
+
+  NOTE: The upstream project requires bash.  Bash will probably work, but
+  the focus of this fork is to not depend on bash, zsh, or other shells
+  that are less portable.
+
+- GnuPG 1.x or 2.x
   http://www.gnupg.org/
-- git
-  http://www.git-scm.com/
-- xclip
-  http://sourceforge.net/projects/xclip/
-- pwgen
-  http://sourceforge.net/projects/pwgen/
+
 - tree >= 1.7.0
   http://mama.indstate.edu/users/ice/tree/
+
 - GNU getopt
   http://www.kernel.org/pub/linux/utils/util-linux/
   http://software.frodo.looijaard.name/getopt/
+
+Optional but nice:
+- git
+  http://www.git-scm.com/
+
+- xclip
+  http://sourceforge.net/projects/xclip/
+
+- pwgen
+  http://sourceforge.net/projects/pwgen/
