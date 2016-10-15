@@ -1,16 +1,24 @@
 #!/bin/sh
 
 # Copyright (C) 2012 - 2014 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+# Copyright (C) 2016 David Cantrell <david.l.cantrell@gmail.com>
 # This file is licensed under the GPLv2+. Please see COPYING for more information.
 
 umask "${PASSWORD_STORE_UMASK:-077}"
-set -o pipefail
 
-GPG_OPTS="$PASSWORD_STORE_GPG_OPTS --quiet --yes --compress-algo=none --no-encrypt-to"
+GPG_OPTS="$PASSWORD_STORE_GPG_OPTS --no-encrypt-to --yes --quiet --compress-algo=none --trust-model=always"
 GPG="gpg"
 export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null)}"
 which gpg2 >/dev/null 2>&1 && GPG="gpg2"
-[ -n $GPG_AGENT_INFO ] || [ $GPG = "gpg2" ] && GPG_OPTS="$GPG_OPTS --batch --use-agent"
+[ -n "$GPG_AGENT_INFO" ] && GPG_OPTS="$GPG_OPTS --use-agent"
+
+tree --version >/dev/null 2>&1
+havetree=$?
+treever="$(tree --version 2>/dev/null | cut -c-6)"
+if [ $havetree -eq 127 ] || [ ! "$treever" = "tree v" ]; then
+    echo "*** Missing the 'tree' command needed for 'pass list'." >&2
+    exit 1
+fi
 
 PREFIX="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 X_SELECTION="${PASSWORD_STORE_X_SELECTION:-clipboard}"
@@ -41,9 +49,9 @@ yesno() {
 	[ -t 0 ] || return 0
 	local response
 	read -r -p "$1 [y/N] " response
-	if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
-                exit 1
-        fi
+	if [ "$response" = "n" ] || [ "$response" = "n" ]; then
+		exit 1
+	fi
 }
 die() {
 	echo "$@" >&2
@@ -53,8 +61,8 @@ set_gpg_recipients() {
 	GPG_RECIPIENT_ARGS=
 	GPG_RECIPIENTS=
 
-	if [ -n $PASSWORD_STORE_KEY ]; then
-		for gpg_id in $PASSWORD_STORE_KEY; do
+	if [ -n "$PASSWORD_STORE_KEY" ]; then
+		for gpg_id in "$PASSWORD_STORE_KEY"; do
 			GPG_RECIPIENT_ARGS="$GPG_RECIPIENT_ARGS -r $gpg_id"
 			GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 		done
@@ -78,8 +86,7 @@ set_gpg_recipients() {
 		exit 1
 	fi
 
-	local gpg_id
-	while read -r gpg_id; do
+	while read gpg_id; do
 		GPG_RECIPIENT_ARGS="$GPG_RECIPIENT_ARGS -r $gpg_id"
 		GPG_RECIPIENTS="$GPG_RECIPIENTS $gpg_id"
 	done < "$current"
@@ -88,7 +95,7 @@ set_gpg_recipients() {
 reencrypt_path() {
 	local prev_gpg_recipients="" gpg_keys="" current_keys="" index passfile
 	local groups="$($GPG $PASSWORD_STORE_GPG_OPTS --list-config --with-colons | grep "^cfg:group:.*")"
-	find "$1" -iname '*.gpg' -print0 | while read -r -d "" passfile; do
+	find "$1" -iname '*.gpg' -print0 | while read -r passfile; do
 		local passfile_dir="${passfile%/*}"
 		passfile_dir="${passfile_dir#$PREFIX}"
 		passfile_dir="${passfile_dir#/}"
@@ -114,7 +121,7 @@ reencrypt_path() {
 
 		if [ ! $gpg_keys = "$current_keys" ]; then
 			echo "$passfile_display: reencrypting to ${gpg_keys//$'\n'/ }"
-			$GPG -d $GPG_OPTS "$passfile" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS &&
+			$GPG -d $GPG_OPTS "$passfile" | $GPG -e $GPG_RECIPIENT_ARGS -o "$passfile_temp" $GPG_OPTS &&
 			mv "$passfile_temp" "$passfile" || rm -f "$passfile_temp"
 		fi
 		prev_gpg_recipients="$GPG_RECIPIENTS"
@@ -203,8 +210,6 @@ tmpdir() {
 GETOPT="getopt"
 SHRED="shred -f -z"
 
-PLATFORM_FUNCTION_FILE="$(dirname "$0")/platform/$(uname | cut -d _ -f 1 | tr '[:upper:]' '{:lower:]').sh"
-[ -f "$PLATFORM_FUNCTION_FILE" ] && . "$PLATFORM_FUNCTION_FILE"
 
 #
 # END platform definable
@@ -360,7 +365,7 @@ cmd_find() {
 cmd_grep() {
 	[ $# -ne 1 ] && die "Usage: $PROGRAM $COMMAND search-string"
 	local search="$1" passfile grepresults
-	find -L "$PREFIX" -iname '*.gpg' -print0 | while read -r -d "" passfile; do
+	find -L "$PREFIX" -iname '*.gpg' -print0 | while read -r passfile; do
 		grepresults="$($GPG -d $GPG_OPTS "$passfile" | grep --color=always "$search")"
 		[ $? -ne 0 ] && continue
 		passfile="${passfile%.gpg}"
@@ -400,16 +405,21 @@ cmd_insert() {
 	if [ $multiline -eq 1 ]; then
 		echo "Enter contents of $path and press Ctrl+D when finished:"
 		echo
-		$GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS || die "Password encryption aborted."
+		$GPG -e $GPG_RECIPIENT_ARGS -o "$passfile" $GPG_OPTS || die "Password encryption aborted."
 	elif [ $noecho -eq 1 ]; then
 		local password password_again
 		while true; do
-			read -r -p "Enter password for $path: " -s password || exit 1
-			echo
-			read -r -p "Retype password for $path: " -s password_again || exit 1
-			echo
+			read -r -p "Enter password for $path: " password || exit 1
+			read -r -p "Retype password for $path: " password_again || exit 1
 			if [ $password = "$password_again" ]; then
-				echo "$password" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
+				encsrc="$(mktemp)"
+				echo "$password" > "$encsrc"
+				$GPG -e $GPG_RECIPIENT_ARGS -o "$passfile" $GPG_OPTS "$encsrc"
+				if [ $? -ne 0 ] ; then
+					rm -f "$encsrc"
+					die "Password encryption aborted."
+				fi
+				rm -f "$encsrc"
 				break
 			else
 				die "Error: the entered passwords do not match."
@@ -418,7 +428,14 @@ cmd_insert() {
 	else
 		local password
 		read -r -p "Enter password for $path: " -e password
-		echo "$password" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
+		encsrc="$(mktemp)"
+		echo "$password" > "$encsrc"
+		$GPG -e $GPG_RECIPIENT_ARGS -o "$passfile" $GPG_OPTS "$encsrc"
+		if [ $? -ne 0 ] ; then
+			rm -f "$encsrc"
+			die "Password encryption aborted."
+		fi
+		rm -f "$encsrc"
 	fi
 	git_add_file "$passfile" "Add given password for $path to store."
 }
@@ -444,7 +461,7 @@ cmd_edit() {
 	${EDITOR:-vi} "$tmp_file"
 	[ -f $tmp_file ] || die "New password not saved."
 	$GPG -d -o - $GPG_OPTS "$passfile" 2>/dev/null | diff - "$tmp_file" >/dev/null 2>&1 && die "Password unchanged."
-	while ! $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS "$tmp_file"; do
+	while ! $GPG -e $GPG_RECIPIENT_ARGS -o "$passfile" $GPG_OPTS "$tmp_file"; do
 		yesno "GPG encryption failed. Would you like to try again?"
 	done
 	git_add_file "$passfile" "$action password for $path using ${EDITOR:-vi}."
@@ -479,11 +496,18 @@ cmd_generate() {
 	local pass="$(pwgen -s $symbols $length 1)"
 	[ -n $pass ] || exit 1
 	if [ $inplace -eq 0 ]; then
-		echo "$pass" | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile" $GPG_OPTS --passphrase-fd 0 || die "Password encryption aborted."
+		encsrc="$(mktemp)"
+		echo "$pass" > "$encsrc"
+		$GPG -e $GPG_RECIPIENT_ARGS -o "$passfile" $GPG_OPTS "$encsrc"
+		if [ $? -ne 0 ] ; then
+			rm -f "$encsrc"
+			die "Password encryption aborted."
+		fi
+		rm -f "$encsrc"
 	else
 		tmpdir
 		local passfile_temp="$(mkfifo -m 0600 "$SECURE_TMPDIR/pipe")"
-		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(echo "$pass" | sed 's/[\/&]/\\&/g')"$'\n' | $GPG -e "$GPG_RECIPIENT_ARGS" -o "$passfile_temp" $GPG_OPTS; then
+		if $GPG -d $GPG_OPTS "$passfile" | sed $'1c \\\n'"$(echo "$pass" | sed 's/[\/&]/\\&/g')"$'\n' | $GPG -e $GPG_RECIPIENT_ARGS -o "$passfile_temp" $GPG_OPTS; then
 			mv "$passfile_temp" "$passfile"
 		else
 			rm -f "$passfile_temp"
